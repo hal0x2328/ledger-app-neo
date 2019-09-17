@@ -15,6 +15,7 @@
 #  limitations under the License.
 #*******************************************************************************
 
+
 ifeq ($(BOLOS_SDK),)
 $(error BOLOS_SDK is not set)
 endif
@@ -126,10 +127,10 @@ endif
 all: default
 
 load: all
-	python -m ledgerblue.loadApp $(APP_LOAD_PARAMS)
+	python3 -m ledgerblue.loadApp $(APP_LOAD_PARAMS)
 
 delete:
-	python -m ledgerblue.deleteApp $(APP_DELETE_PARAMS)
+	python3 -m ledgerblue.deleteApp $(APP_DELETE_PARAMS)
 
 # import rules to compile glyphs(/pone)
 include $(BOLOS_SDK)/Makefile.glyphs

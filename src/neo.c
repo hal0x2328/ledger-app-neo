@@ -760,10 +760,29 @@ void public_key_hash160(unsigned char * in, unsigned short inlen, unsigned char 
 	cx_hash(&u.riprip.header, CX_LAST, buffer, 32, out, 20);
 }
 
-void display_public_key(const unsigned char * public_key) {
+void display_public_address(const unsigned char * public_key) {
 	os_memmove(current_public_key[0], TXT_BLANK, sizeof(TXT_BLANK));
 	os_memmove(current_public_key[1], TXT_BLANK, sizeof(TXT_BLANK));
 	os_memmove(current_public_key[2], TXT_BLANK, sizeof(TXT_BLANK));
+
+	char address_base58[ADDRESS_BASE58_LEN];
+
+	get_public_address(public_key, address_base58);
+
+	unsigned int address_base58_len_0 = 11;
+	unsigned int address_base58_len_1 = 11;
+	unsigned int address_base58_len_2 = 12;
+	char * address_base58_0 = address_base58;
+	char * address_base58_1 = address_base58 + address_base58_len_0;
+	char * address_base58_2 = address_base58 + address_base58_len_0 + address_base58_len_1;
+
+	os_memmove(current_public_key[0], address_base58_0, address_base58_len_0);
+	os_memmove(current_public_key[1], address_base58_1, address_base58_len_1);
+	os_memmove(current_public_key[2], address_base58_2, address_base58_len_2);
+
+}
+
+void get_public_address(const unsigned char * public_key, char * address_base58) {
 
 	// from https://github.com/CityOfZion/neon-js core.js
 	unsigned char public_key_encoded[33];
@@ -784,19 +803,7 @@ void display_public_key(const unsigned char * public_key) {
 	unsigned char script_hash_rev[SCRIPT_HASH_LEN];
 	for (int i = 0; i < SCRIPT_HASH_LEN; i++) {
 		script_hash_rev[i] = script_hash[SCRIPT_HASH_LEN - (i + 1)];
-	}
+    }
 
-	char address_base58[ADDRESS_BASE58_LEN];
-	unsigned int address_base58_len_0 = 11;
-	unsigned int address_base58_len_1 = 11;
-	unsigned int address_base58_len_2 = 12;
-	char * address_base58_0 = address_base58;
-	char * address_base58_1 = address_base58 + address_base58_len_0;
-	char * address_base58_2 = address_base58 + address_base58_len_0 + address_base58_len_1;
-	to_address(address_base58, ADDRESS_BASE58_LEN, script_hash);
-
-	os_memmove(current_public_key[0], address_base58_0, address_base58_len_0);
-	os_memmove(current_public_key[1], address_base58_1, address_base58_len_1);
-	os_memmove(current_public_key[2], address_base58_2, address_base58_len_2);
-
+    to_address(address_base58, ADDRESS_BASE58_LEN, script_hash);
 }

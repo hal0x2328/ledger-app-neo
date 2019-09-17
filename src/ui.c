@@ -6,6 +6,15 @@
 #include "blue_elements.h"
 #include "glyphs.h"
 
+#define ADDRESS_BASE58_LEN 34
+char toAddress[ADDRESS_BASE58_LEN+1];
+unsigned char *tmp;
+int bip44_path[BIP44_PATH_LEN];
+unsigned int ux_step;
+unsigned int ux_step_count;
+
+unsigned int ui_approval_pgp_ecdh_nanos_button(unsigned int button_mask,
+                                     unsigned int button_mask_counter);
 /** default font */
 #define DEFAULT_FONT BAGL_FONT_OPEN_SANS_EXTRABOLD_11px | BAGL_FONT_ALIGNMENT_CENTER
 
@@ -94,16 +103,60 @@ static const bagl_element_t * tx_desc_dn(const bagl_element_t *e);
 /** sets the tx_desc variables to no information */
 static void clear_tx_desc(void);
 
+#ifdef TARGET_BLUE
 /** return app to dashboard */
 static const bagl_element_t *bagl_ui_DASHBOARD_blue_button(const bagl_element_t *e);
 /** goes to settings menu (pubkey display) on blue */
 static const bagl_element_t *bagl_ui_SETTINGS_blue_button(const bagl_element_t *e);
 /** returns to NEO app on blue */
 static const bagl_element_t *bagl_ui_LEFT_blue_button(const bagl_element_t *e);
-
+#endif
 
 ////////////////////////////////////  NANO X //////////////////////////////////////////////////
 #ifdef TARGET_NANOX
+
+// ECDH Shared Secret
+//////////////////////////////////////////////////////////////////////
+UX_STEP_NOCB(
+    ux_approval_pgp_ecdh_1_step,
+    pnn,
+    {
+      &C_icon_eye,
+      "Approve",
+      "Shared Secret",
+    });
+UX_STEP_NOCB(
+    ux_approval_pgp_ecdh_2_step,
+    bnnn_paging,
+    {
+      .title = "With",
+      .text = toAddress,
+    });
+
+UX_STEP_VALID(
+    ux_approval_pgp_ecdh_3_step,
+    pb,
+    io_seproxyhal_touch_ecdh_ok(NULL),
+    {
+      &C_icon_validate_14,
+      "Accept",
+    });
+UX_STEP_VALID(
+    ux_approval_pgp_ecdh_4_step,
+    pb,
+    io_seproxyhal_touch_ecdh_cancel(NULL),
+    {
+      &C_icon_crossmark,
+      "Reject",
+    });
+
+UX_DEF(ux_approval_pgp_ecdh_flow,
+  &ux_approval_pgp_ecdh_1_step,
+  &ux_approval_pgp_ecdh_2_step,
+  &ux_approval_pgp_ecdh_3_step,
+  &ux_approval_pgp_ecdh_4_step
+);
+
 
 UX_STEP_NOCB(
     ux_confirm_single_flow_1_step, 
@@ -255,6 +308,7 @@ static const bagl_element_t bagl_ui_idle_nanos[] = {
 /* */
 };
 
+#ifdef TARGET_BLUE
 /** UI struct for the idle screen, Blue.*/
 static const bagl_element_t bagl_ui_idle_blue[] = {
     BG_FILL,
@@ -268,7 +322,9 @@ static const bagl_element_t bagl_ui_idle_blue[] = {
     TEXT_CENTER(OPEN_MESSAGE2, _Y(330), COLOUR_BLACK, FONT_S),
     TEXT_CENTER(OPEN_MESSAGE3, _Y(450), COLOUR_GREY, FONT_XS)
 };
+#endif
 
+#ifdef TARGET_NANOS
 /**
  * buttons for the idle screen
  *
@@ -286,8 +342,6 @@ static unsigned int bagl_ui_idle_nanos_button(unsigned int button_mask, unsigned
 
 	return 0;
 }
-
-
 
 /** UI struct for the idle screen */
 static const bagl_element_t bagl_ui_public_key_nanos_1[] = {
@@ -325,6 +379,9 @@ static const bagl_element_t bagl_ui_public_key_nanos_2[] = {
 /* */
 };
 
+#endif
+
+#ifdef TARGET_BLUE
 /** UI struct for the top "Sign Transaction" screen, Blue. */
 static const bagl_element_t bagl_ui_public_key_blue[] = {
     BG_FILL,
@@ -338,7 +395,9 @@ static const bagl_element_t bagl_ui_public_key_blue[] = {
     TEXT_CENTER(FOOTER1, _Y(442), COLOUR_GREY, FONT_XS),
     TEXT_CENTER(FOOTER2, _Y(458), COLOUR_GREY, FONT_XS)
 };
+#endif
 
+#ifdef TARGET_NANOS
 /**
  * buttons for the idle screen
  *
@@ -353,8 +412,6 @@ static unsigned int bagl_ui_public_key_nanos_1_button(unsigned int button_mask, 
 		ui_public_key_2();
 		break;
 	}
-
-
 	return 0;
 }
 
@@ -396,6 +453,10 @@ static const bagl_element_t bagl_ui_top_sign_nanos[] = {
 /* */
 };
 
+#endif
+
+
+#ifdef TARGET_BLUE
 /** UI struct for the top "Sign Transaction" screen, Blue. */
 static const bagl_element_t bagl_ui_top_sign_blue[] = {
     BG_FILL,
@@ -418,7 +479,9 @@ static const bagl_element_t bagl_ui_top_sign_blue[] = {
     TEXT_CENTER(TX_FOOTER1, _Y(448), COLOUR_GREY, FONT_XS),
     TEXT_CENTER(TX_FOOTER2, _Y(464), COLOUR_GREY, FONT_XS)
 };
+#endif
 
+#ifdef TARGET_NANOS
 /**
  * buttons for the top "Sign Transaction" screen
  *
@@ -596,6 +659,8 @@ static unsigned int bagl_ui_tx_desc_nanos_2_button(unsigned int button_mask, uns
 	return 0;
 }
 
+#endif
+
 /** if the user wants to exit go back to the app dashboard. */
 static const bagl_element_t *io_seproxyhal_touch_exit(const bagl_element_t *e) {
 	// Go back to the dashboard
@@ -698,18 +763,17 @@ const bagl_element_t*io_seproxyhal_touch_approve(const bagl_element_t *e) {
 		// Update and sign the hash
 		cx_hash(&hash.header, 0, raw_tx, raw_tx_len_except_bip44, NULL, 0);
 
-		unsigned char * bip44_in = raw_tx + raw_tx_len_except_bip44;
+		tmp = raw_tx + raw_tx_len_except_bip44;
 
 		/** BIP44 path, used to derive the private key from the mnemonic by calling os_perso_derive_node_bip32. */
-		unsigned int bip44_path[BIP44_PATH_LEN];
 		uint32_t i;
 		for (i = 0; i < BIP44_PATH_LEN; i++) {
-			bip44_path[i] = (bip44_in[0] << 24) | (bip44_in[1] << 16) | (bip44_in[2] << 8) | (bip44_in[3]);
-			bip44_in += 4;
+			bip44_path[i] = (tmp[0] << 24) | (tmp[1] << 16) | (tmp[2] << 8) | (tmp[3]);
+			tmp += 4;
 		}
 
 		unsigned char privateKeyData[32];
-		os_perso_derive_node_bip32(CX_CURVE_256R1, bip44_path, BIP44_PATH_LEN, privateKeyData, NULL);
+		os_perso_derive_node_bip32(CX_CURVE_256R1, (const unsigned int *)bip44_path, BIP44_PATH_LEN, privateKeyData, NULL);
 
 		cx_ecfp_private_key_t privateKey;
 		cx_ecdsa_init_private_key(CX_CURVE_256R1, privateKeyData, 32, &privateKey);
@@ -760,6 +824,7 @@ static const bagl_element_t *io_seproxyhal_touch_deny(const bagl_element_t *e) {
 	return 0; // do not redraw the widget
 }
 
+#ifdef TARGET_BLUE
 static unsigned int bagl_ui_idle_blue_button(unsigned int button_mask, unsigned int button_mask_counter) {
 	return 0;
 }
@@ -771,7 +836,9 @@ static unsigned int bagl_ui_public_key_blue_button(unsigned int button_mask, uns
 static unsigned int bagl_ui_top_sign_blue_button(unsigned int button_mask, unsigned int button_mask_counter) {
 	return 0;
 }
+#endif
 
+#ifdef TARGET_NANOS
 /** show the public key screen */
 void ui_public_key_1(void) {
 	uiState = UI_PUBLIC_KEY_1;
@@ -789,6 +856,7 @@ void ui_public_key_2(void) {
 		UX_DISPLAY(bagl_ui_public_key_nanos_2, NULL);
 	}
 }
+#endif
 
 /** show the idle screen. */
 void ui_idle(void) {
@@ -849,6 +917,7 @@ void ui_top_sign(void) {
 #endif // #if TARGET_ID
 }
 
+
 /** show the "deny" screen */
 static void ui_deny(void) {
 	uiState = UI_DENY;
@@ -884,6 +953,7 @@ static void clear_tx_desc(void) {
     strncpy(tx_desc[2][0], NO_INFO, sizeof(NO_INFO));
 }
 
+#ifdef TARGET_BLUE
 /** returns to dashboard */
 static const bagl_element_t *bagl_ui_DASHBOARD_blue_button(const bagl_element_t *e)
 {
@@ -904,3 +974,269 @@ static const bagl_element_t *bagl_ui_LEFT_blue_button(const bagl_element_t *e)
     ui_idle();
     return NULL;
 }
+#endif
+
+// PGP ECDH
+unsigned int io_seproxyhal_touch_ecdh_cancel(const bagl_element_t *e) {
+    G_io_apdu_buffer[0] = 0x69;
+    G_io_apdu_buffer[1] = 0x85;
+    // Send back the response, do not restart the event loop
+    io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, 2);
+    // Display back the original UX
+    ui_idle();
+    return 0; // do not redraw the widget
+}
+
+unsigned int io_seproxyhal_touch_ecdh_ok(const bagl_element_t *e) {
+    uint8_t privateKeyData[32];
+    cx_ecfp_private_key_t privateKey;
+    uint32_t tx = 0;
+
+	/** BIP44 path, used to derive the private key from the mnemonic by calling os_perso_derive_node_bip32. */
+	tmp = G_io_apdu_buffer + APDU_HEADER_LENGTH + 65;
+
+	uint32_t i;
+	for (i = 0; i < BIP44_PATH_LEN; i++) {
+		bip44_path[i] = (tmp[0] << 24) | (tmp[1] << 16) | (tmp[2] << 8) | (tmp[3]);
+		tmp += 4;
+	}
+	os_perso_derive_node_bip32(CX_CURVE_256R1, (const unsigned int *)bip44_path, BIP44_PATH_LEN, privateKeyData, NULL);
+	cx_ecdsa_init_private_key(CX_CURVE_256R1, privateKeyData, 32, &privateKey);
+
+	tmp = G_io_apdu_buffer + APDU_HEADER_LENGTH;
+	os_memmove(raw_tx, tmp, 65); 
+    tx = cx_ecdh(&privateKey, CX_ECDH_X,
+                    raw_tx, 65,
+                    G_io_apdu_buffer, 32);
+    
+    // Clear tmp buffer data
+    os_memset(&privateKey, 0, sizeof(privateKey));
+    os_memset(privateKeyData, 0, sizeof(privateKeyData));
+
+    G_io_apdu_buffer[tx++] = 0x90;
+    G_io_apdu_buffer[tx++] = 0x00;
+
+    // Send back the response, do not restart the event loop
+    io_exchange(CHANNEL_APDU | IO_RETURN_AFTER_TX, tx);
+    // Display back the original UX
+    ui_idle();
+    return 0; // do not redraw the widget
+}
+
+
+#if defined(TARGET_BLUE)
+
+unsigned int
+ui_approval_pgp_ecdh_blue_button(unsigned int button_mask,
+                                 unsigned int button_mask_counter) {
+    return 0;
+}
+
+// UI to approve or deny the signature proposal
+static const bagl_element_t const ui_approval_pgp_ecdh_blue[] = {
+    {{BAGL_RECTANGLE, 0x00, 0, 68, 320, 413, 0, 0, BAGL_FILL, COLOR_BG_1,
+      0x000000, 0, 0},
+     NULL,
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+    // erase screen (only under the status bar)
+    {{BAGL_RECTANGLE, 0x00, 0, 20, 320, 48, 0, 0, BAGL_FILL, COLOR_APP,
+      COLOR_APP, 0, 0},
+     NULL,
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+     /// TOP STATUS BAR
+    {{BAGL_LABELINE, 0x00, 0, 45, 320, 30, 0, 0, BAGL_FILL, 0xFFFFFF, COLOR_APP,
+      BAGL_FONT_OPEN_SANS_SEMIBOLD_10_13PX | BAGL_FONT_ALIGNMENT_CENTER, 0},
+     "NEO SHARED SECRET",
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+     {{BAGL_LABEL, 0x00, 0, 185, 320, 32, 0, 0, 0, 0x000000, 0xF9F9F9,
+      BAGL_FONT_OPEN_SANS_LIGHT_14px | BAGL_FONT_ALIGNMENT_CENTER, 0},
+     "Shared with",
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+    {{BAGL_LABEL, 0x00, 0, 234, 320, 33, 0, 0, 0, 0x000000, 0xF9F9F9,
+      BAGL_FONT_OPEN_SANS_SEMIBOLD_11_16PX | BAGL_FONT_ALIGNMENT_CENTER, 0},
+     (const char *)toAddress,
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+    
+    {{BAGL_BUTTON | BAGL_FLAG_TOUCHABLE, 0x00, 35, 385, 120, 40, 0, 6,
+      BAGL_FILL, 0xcccccc, COLOR_BG_1,
+      BAGL_FONT_OPEN_SANS_LIGHT_14px | BAGL_FONT_ALIGNMENT_CENTER |
+          BAGL_FONT_ALIGNMENT_MIDDLE,
+      0},
+     "CANCEL",
+     0,
+     0x37ae99,
+     COLOR_BG_1,
+     io_seproxyhal_touch_ecdh_cancel,
+     NULL,
+     NULL},
+    {{BAGL_BUTTON | BAGL_FLAG_TOUCHABLE, 0x00, 165, 385, 120, 40, 0, 6,
+      BAGL_FILL, 0x41ccb4, COLOR_BG_1,
+      BAGL_FONT_OPEN_SANS_LIGHT_14px | BAGL_FONT_ALIGNMENT_CENTER |
+          BAGL_FONT_ALIGNMENT_MIDDLE,
+      0},
+     "CONFIRM",
+     0,
+     0x37ae99,
+     COLOR_BG_1,
+     io_seproxyhal_touch_ecdh_ok,
+     NULL,
+     NULL},
+  
+};
+
+#endif // #if defined(TARGET_BLUE)
+
+#if defined(TARGET_NANOS)
+unsigned int ui_approval_pgp_ecdh_nanos_button(unsigned int button_mask,
+                                     unsigned int button_mask_counter) {
+    switch (button_mask) {
+	    case BUTTON_EVT_RELEASED | BUTTON_LEFT: // CANCEL
+		io_seproxyhal_touch_ecdh_cancel(NULL);
+		break;
+
+	    case BUTTON_EVT_RELEASED | BUTTON_RIGHT:  // OK
+		io_seproxyhal_touch_ecdh_ok(NULL);
+		break;
+    }
+    return 0;
+}
+
+const bagl_element_t ui_approval_pgp_ecdh_nanos[] = {
+    // type                               userid    x    y   w    h  str rad
+    // fill      fg        bg      fid iid  txt   touchparams...       ]
+    {{BAGL_RECTANGLE, 0x00, 0, 0, 128, 32, 0, 0, BAGL_FILL, 0x000000, 0xFFFFFF,
+      0, 0},
+     NULL,
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+    {{BAGL_ICON, 0x00, 3, 12, 7, 7, 0, 0, 0, 0xFFFFFF, 0x000000, 0,
+      BAGL_GLYPH_ICON_CROSS},
+     NULL,
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+    {{BAGL_ICON, 0x00, 117, 13, 8, 6, 0, 0, 0, 0xFFFFFF, 0x000000, 0,
+      BAGL_GLYPH_ICON_CHECK},
+     NULL,
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+    //{{BAGL_ICON                           , 0x01,  31,   9,  14,  14, 0, 0, 0
+    //, 0xFFFFFF, 0x000000, 0, BAGL_GLYPH_ICON_EYE_BADGE  }, NULL, 0, 0, 0,
+    // NULL, NULL, NULL },
+    {{BAGL_LABELINE, 0x01, 0, 12, 128, 32, 0, 0, 0, 0xFFFFFF, 0x000000,
+      BAGL_FONT_OPEN_SANS_EXTRABOLD_11px | BAGL_FONT_ALIGNMENT_CENTER, 0},
+     "Create",
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+    {{BAGL_LABELINE, 0x01, 0, 26, 128, 32, 0, 0, 0, 0xFFFFFF, 0x000000,
+      BAGL_FONT_OPEN_SANS_EXTRABOLD_11px | BAGL_FONT_ALIGNMENT_CENTER, 0},
+     "Shared Secret",
+     0,
+     0,
+     0,
+     NULL,
+     NULL,
+     NULL},
+
+    {{BAGL_LABELINE, 0x02, 0, 12, 128, 32, 0, 0, 0, 0xFFFFFF, 0x000000,
+         BAGL_FONT_OPEN_SANS_REGULAR_11px | BAGL_FONT_ALIGNMENT_CENTER, 0},
+    "With",
+    0,
+    0,
+    0,
+    NULL,
+    NULL,
+    NULL},
+    {{BAGL_LABELINE, 0x02, 23, 26, 82, 12, 0x80 | 10, 0, 0, 0xFFFFFF, 0x000000,
+         BAGL_FONT_OPEN_SANS_EXTRABOLD_11px | BAGL_FONT_ALIGNMENT_CENTER, 26},
+    (char *)toAddress,
+    0,
+    0,
+    0,
+    NULL,
+    NULL,
+    NULL},
+};
+#endif // #if defined(TARGET_NANOS)
+
+unsigned int ui_approval_pgp_ecdh_prepro(const bagl_element_t *element) {
+    if (element->component.userid > 0) {
+        unsigned int display = (ux_step == element->component.userid - 1);
+        if (display) {
+            switch (element->component.userid) {
+                case 1:
+                    UX_CALLBACK_SET_INTERVAL(2000);
+                    break;
+                case 2:
+                    UX_CALLBACK_SET_INTERVAL(MAX(
+                                3000, 1000 + bagl_label_roundtrip_duration_ms(element, 7)));
+                    break;
+            }
+        }
+        return display;
+    }
+    return 1;
+}
+
+void ui_ecdh(void) {
+#if defined(TARGET_BLUE)
+    UX_DISPLAY(ui_approval_pgp_ecdh_blue, NULL);
+#elif defined(TARGET_NANOS)
+    ux_step = 0;
+    ux_step_count = 2;
+    UX_DISPLAY(ui_approval_pgp_ecdh_nanos,(bagl_element_callback_t) ui_approval_pgp_ecdh_prepro);
+#elif defined(TARGET_NANOX)
+    // reserve a display stack slot if none yet
+    if(G_ux.stack_count == 0) {
+        ux_stack_push();
+    }
+    ux_flow_init(0, ux_approval_pgp_ecdh_flow, NULL);
+#endif
+}
+

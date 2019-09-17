@@ -122,4 +122,18 @@ unsigned int get_apdu_buffer_length();
 /** sets menu bar colour for blue */
 void ui_set_menu_bar_colour(void);
 
+/** ecdh functions */
+void ui_ecdh(void);
+unsigned int io_seproxyhal_touch_ecdh_cancel(const bagl_element_t *e);
+unsigned int io_seproxyhal_touch_ecdh_ok(const bagl_element_t *e);
+unsigned int ui_approval_pgp_ecdh_prepro(const bagl_element_t *element);
+
+extern unsigned int ux_step;
+extern unsigned int ux_step_count;
+
+/** length of a tx.output Address, after Base58 encoding. */
+#define ADDRESS_BASE58_LEN 34
+
+extern char toAddress[ADDRESS_BASE58_LEN+1];
+
 #endif // UI_H
